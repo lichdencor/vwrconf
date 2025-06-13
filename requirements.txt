@@ -36,5 +36,5 @@ typing-inspection==0.4.1
 typing_extensions==4.14.0
 uc-micro-py==1.0.3
 # (vwrconf==0.1)
--e /home/pilotero/Documentos/projects/vwrconf
+-e .
 yarl==1.20.0
