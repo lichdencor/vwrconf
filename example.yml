@@ -1,0 +1,46 @@
+# vwrconf configuration example
+# Use this file as a template to configure remote clients and default connection settings.
+
+# Default connection parameters applied to all clients unless overridden.
+defaults:
+  ssh_user: your_default_ssh_username   # Default SSH user for all clients (optional)
+  port: 22                             # Default SSH port (usually 22)
+  method: ssh                         # Connection method: "ssh" (default) or "agent"
+  readonly: false                     # If true, all clients default to read-only mode
+
+# List of remote clients to manage.
+clients:
+  - id: unique_client_id               # Unique identifier string for the client (required)
+    host: example.com_or_ip            # Hostname or IP address of the client (required)
+    label: descriptive_label           # Human-friendly label for display (required)
+    ssh_user: optional_user_override   # SSH username override for this client (optional)
+    port: optional_port_override       # SSH port override for this client (optional)
+    method: ssh_or_agent               # Connection method override for this client (optional)
+    readonly: true_or_false            # Read-only mode for this client (optional)
+    tags:                            # Optional list of tags (strings) to categorize clients
+      - tag1
+      - tag2
+    notes: optional_notes_string       # Free text notes about this client (optional)
+
+# Example clients below:
+
+  - id: void-main
+    host: 192.168.0.16
+    label: Void Server Main Workstation
+    ssh_user: void
+    port: 22
+    method: ssh
+    readonly: true
+    tags:
+      - workstation
+      - critical
+    notes: Main SSH access point for Void Linux workstation.
+
+  - id: alpine-lab
+    host: 192.168.0.18
+    label: Alpine Home Lab Box
+    ssh_user: kimba
+    port: 22
+    method: ssh
+    notes: Accessed through LAN, used for testing and experimentation.
+

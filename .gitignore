@@ -1,0 +1,6 @@
+*.venv/
+*.pytest_cache/
+tests/
+vwrconf.yml
+pyrightconfig.json
+vwrconf.egg-info/
