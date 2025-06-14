@@ -1,6 +1,68 @@
-*.venv/
-*.pytest_cache/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# VS Code
+.vscode/
+
+# PyCharm / IntelliJ
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# pytest cache
+.pytest_cache/
+
+# mypy, pyright, pyre, etc.
+.mypy_cache/
+.pytype/
+.pyrightconfig.json
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Test-related
 tests/
-vwrconf.yml
-pyrightconfig.json
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
 vwrconf.egg-info/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# macOS
+.DS_Store
+
+# Editor swap/backup files
+*~
+*.swp
+*.swo
+*.bak
+
+# Project-specific
+vwrconf.yml
+
+# LSP
+pyrightconfig.json
