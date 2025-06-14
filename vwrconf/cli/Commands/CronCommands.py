@@ -21,7 +21,7 @@ class CronCommands(GlobalCommand):
             entries = [CrontabEntry(line, host=host, source="live") for line in jobs if line.strip()]
             filtered_entries = filter_entries(entries, args.grep) if args.grep else entries
             for entry in filtered_entries:
-                print(f"  {entry}")
+                print(f"  {entry.line}")
 
     @classmethod
     def cmd_backup_crontabs(cls, args):

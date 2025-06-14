@@ -6,6 +6,8 @@ from vwrconf.cli.Commands.CronCommands import CronCommands
 
 from vwrconf.utils.yaml_path import cmd_config
 
+from vwrconf.tui.main import main as tui_main
+
 def build_parser():
     """
     Builds the parser to run the cli commands
@@ -102,12 +104,10 @@ def build_parser():
     return parser
 
 def run_cli():
-    parser = build_parser()
-
     if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit(1)
+        tui_main()
+        return
 
+    parser = build_parser()
     args = parser.parse_args()
     args.func(args)
-
