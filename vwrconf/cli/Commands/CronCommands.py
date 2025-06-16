@@ -8,24 +8,28 @@ from vwrconf.core.diff import diff_crontabs
 from vwrconf.models.Backup.cron import CronBackup
 from vwrconf.models.Crontab.crontab_entry import CrontabEntry
 from vwrconf.utils.entry_parser import normalize_line
-from vwrconf.utils.filters import filter_entries
+
 
 
 class CronCommands(GlobalCommand):
     @classmethod
     def cmd_view_crontabs(cls, args):
-        config = cls.load_config(args.config)
+        config = cls.should_filter_host(args)
         crontabs = fetch_all_crontabs(config)
+        pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
+
         for host, jobs in crontabs.items():
             print(f"\n🔸 Crontab for {host}:")
             entries = [CrontabEntry(line, host=host, source="live") for line in jobs if line.strip()]
-            filtered_entries = filter_entries(entries, args.grep) if args.grep else entries
-            for entry in filtered_entries:
-                print(f"  {entry}")
+            for entry in entries:
+                lines = cls.grep_lines(entry.line, pattern)
+                if lines:
+                    print(f"  {entry.line}")
+
 
     @classmethod
     def cmd_backup_crontabs(cls, args):
-        config = cls.load_config(args.config)
+        config = cls.should_filter_host(args)
         crontabs = fetch_all_crontabs(config)
         backup = CronBackup(config)
         for host, lines in crontabs.items():
@@ -35,9 +39,34 @@ class CronCommands(GlobalCommand):
     def cmd_restore_crontab(cls, args):
         config = cls.load_config(args.config)
         backup = CronBackup(config)
+
+        # Validar que existe y contiene líneas
+        lines = backup.read_backup_stored(args.host, args.file)
+        if not lines:
+            print(f"[ERROR] Backup file '{args.file}' for host '{args.host}' is empty or not found.")
+            sys.exit(1)
+
+        # DRY RUN
+        if getattr(args, "dry_run", False):
+            print(f"[DRY RUN] This is the content of '{args.file}' that would be restored to host '{args.host}':\n")
+            for line in lines:
+                print(line)
+            return
+
+        # Confirmación interactiva
+        confirm = input(f"\nAre you sure you want to overwrite the crontab on host '{args.host}' with backup '{args.file}'? (yes/no): ").strip().lower()
+        if confirm != "yes":
+            print("Aborted by user.")
+            sys.exit(0)
+
+        # Restaurar
         success = backup.restore_backup(args.host, args.file)
         if not success:
+            print(f"[ERROR] Failed to restore backup '{args.file}' on host '{args.host}'.")
             sys.exit(1)
+
+        print(f"[OK] Crontab restored successfully on host '{args.host}' from backup '{args.file}'.")
+
 
     @classmethod
     def cmd_list_backup_dates(cls, args):
@@ -56,9 +85,12 @@ class CronCommands(GlobalCommand):
         config = cls.load_config(args.config)
         backup = CronBackup(config)
         lines = backup.read_backup_stored(args.host, args.file)
+        pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
+
         print(f"Contents of backup {args.file} for {args.host}:\n")
         for line in lines:
-            print(line)
+            if cls.grep_lines(line, pattern):
+                print(line)
 
     @classmethod
     def cmd_list_backup_hosts(cls, args):
@@ -70,11 +102,12 @@ class CronCommands(GlobalCommand):
             for h in hosts:
                 print(f"  - {h}")
         else:
-            print("No hosts with backups found.")    
+            print("No hosts with backups found.")
+
 
     @classmethod
     def cmd_diff_live_backup(cls, args):
-        config = cls.load_config(args.config)
+        config = cls.should_filter_host(args, is_diff=True)
         crontabs = fetch_all_crontabs(config)
         backup = CronBackup(config)
 
@@ -102,9 +135,16 @@ class CronCommands(GlobalCommand):
             if line.strip() and not line.strip().startswith("#")
         }
 
-        if args.grep:
-            live_entries = set(filter_entries(list(live_entries), args.grep))
-            backup_entries = set(filter_entries(list(backup_entries), args.grep))
+        # Compile pattern once
+        pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
+        if pattern:
+            # Filter live_entries and backup_entries by matching entry.line against pattern
+            live_entries = {
+                entry for entry in live_entries if cls.grep_lines(entry.line, pattern)
+            }
+            backup_entries = {
+                entry for entry in backup_entries if cls.grep_lines(entry.line, pattern)
+            }
 
         diff = diff_crontabs(live_entries, backup_entries)
 
@@ -112,7 +152,6 @@ class CronCommands(GlobalCommand):
 
         RED = "\033[91m"
         GREEN = "\033[92m"
-        GRAY = "\033[90m"
         RESET = "\033[0m"
 
         print(f"  Added ({len(diff['added'])}):")
@@ -123,14 +162,13 @@ class CronCommands(GlobalCommand):
         for e in diff["removed"]:
             print(f"    {RED}- {e.line}{RESET}")
 
-        print(f"  Unchanged ({len(diff['unchanged'])}):")
-        for e in diff["unchanged"]:
-            print(f"    {GRAY}  {e.line}{RESET}")
+        if not diff["added"] and not diff["removed"]:
+            print("  No differences found.")
 
 
     @classmethod
     def cmd_diff_backups(cls, args):
-        config = cls.load_config(args.config)
+        config = cls.should_filter_host(args, is_diff=True)
         backup = CronBackup(config)
 
         older_file = args.file1
@@ -155,16 +193,18 @@ class CronCommands(GlobalCommand):
             if line.strip() and not line.strip().startswith("#")
         }
 
-        if args.grep:
-            older_entries = set(filter_entries(list(older_entries), args.grep))
-            newer_entries = set(filter_entries(list(newer_entries), args.grep))
+        pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
+        if pattern:
+            older_entries = {e for e in older_entries if cls.grep_lines(e.line, pattern)}
+            newer_entries = {e for e in newer_entries if cls.grep_lines(e.line, pattern)}
 
         diff = diff_crontabs(newer_entries, older_entries)
 
         RED = "\033[91m"
         GREEN = "\033[92m"
-        GRAY = "\033[90m"
         RESET = "\033[0m"
+
+        print(f"\n[{host}] Diff between backups '{older_file}' → '{newer_file}':")
 
         print(f"  Added ({len(diff['added'])}):")
         for e in diff["added"]:
@@ -174,14 +214,13 @@ class CronCommands(GlobalCommand):
         for e in diff["removed"]:
             print(f"    {RED}- {e.line}{RESET}")
 
-        print(f"  Unchanged ({len(diff['unchanged'])}):")
-        for e in diff["unchanged"]:
-            print(f"    {GRAY}  {e.line}{RESET}")
+        if not diff["added"] and not diff["removed"]:
+            print("  No differences found.")
 
 
     @classmethod
     def cmd_diff_hosts(cls, args):
-        config = cls.load_config(args.config)
+        config = cls.should_filter_host(args, is_diff=True)
         crontabs = fetch_all_crontabs(config)
 
         host1 = args.host1
@@ -207,15 +246,15 @@ class CronCommands(GlobalCommand):
         entries1 = parse_lines(crontabs[host1], host1)
         entries2 = parse_lines(crontabs[host2], host2)
 
-        if args.grep:
-            entries1 = set(filter_entries(list(entries1), args.grep))
-            entries2 = set(filter_entries(list(entries2), args.grep))
+        pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
+        if pattern:
+            entries1 = {e for e in entries1 if cls.grep_lines(e.line, pattern)}
+            entries2 = {e for e in entries2 if cls.grep_lines(e.line, pattern)}
 
         diff = diff_crontabs(entries2, entries1)  # new, old
 
         RED = "\033[91m"
         GREEN = "\033[92m"
-        GRAY = "\033[90m"
         RESET = "\033[0m"
 
         print(f"\n🔸 Diff between live crontabs of '{host1}' and '{host2}':\n")
@@ -228,7 +267,6 @@ class CronCommands(GlobalCommand):
         for e in diff["removed"]:
             print(f"    {RED}- {e.line}{RESET}")
 
-        print(f"  Common to both ({len(diff['unchanged'])}):")
-        for e in diff["unchanged"]:
-            print(f"    {GRAY}  {e.line}{RESET}")
+        if not diff["added"] and not diff["removed"]:
+            print("  No differences found.")
 

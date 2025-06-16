@@ -55,34 +55,39 @@ class CronBackup(BaseBackup):
 
     def restore_backup(self, host_id: str, timestamp: str):
         if self._is_readonly(host_id):
-            print(f"Skipping readonly host {host_id}: restore not allowed.")
-            return
+            print(f"[SKIP] Host '{host_id}' is readonly. Restore not allowed.")
+            return False
 
         backup_path = os.path.join(self._get_host_backup_dir(host_id), f"{timestamp}.cron")
         if not os.path.exists(backup_path):
-            print(f"Skipping {host_id}: Backup not found at {backup_path}")
-            return
+            print(f"[ERROR] Backup not found at: {backup_path}")
+            return False
 
         with open(backup_path, "r") as f:
             content = f.read()
 
         client = next((c for c in self.config.clients if c.id == host_id), None)
         if not client:
-            print(f"Skipping unknown host {host_id}.")
-            return
+            print(f"[ERROR] Unknown host '{host_id}'.")
+            return False
 
         ssh = SSHConnectionHandler(client, self.config.defaults)
         if not ssh.connect():
-            print(f"Skipping {host_id}: SSH connection failed.")
-            return
+            print(f"[ERROR] Could not connect to host '{host_id}'.")
+            return False
 
-        temp_path = "/tmp/vwrconf_restore.cron"
-        echo_cmd = f"echo '{content}' > {temp_path} && crontab {temp_path} && rm {temp_path}"
-        _, stderr = ssh.run(echo_cmd)
+        # Send the backup file content through stdin to crontab (avoids temp file)
+        cmd = "crontab -"
+        stdout, stderr = ssh.run(cmd, input_data=content, use_pty=False)
         ssh.close()
 
         if stderr.strip():
-            print(f"Restore failed for {host_id}: {stderr.strip()}")
+            print(f"[ERROR] Failed to restore crontab on '{host_id}': {stderr.strip()}")
+            return False
+
+        print(f"[OK] Crontab restored successfully on '{host_id}'.")
+        return True
+
 
     def read_backup_stored(self, host_id: str, timestamp: str) -> list[str]:
         file_path = os.path.join(self._get_host_backup_dir(host_id), timestamp)
