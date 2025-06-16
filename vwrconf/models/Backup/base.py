@@ -12,7 +12,7 @@ class Backup(ABC):
         pass
 
     @abstractmethod
-    def restore_backup(self, host_id: str, timestamp: str):
+    def restore_backup(self, host_id: str, timestamp: str) -> bool:
         pass
 
     @abstractmethod

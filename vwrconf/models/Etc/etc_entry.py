@@ -1,18 +1,20 @@
-# vwrconf/models/Crontab/crontab_entry.py
+# vwrconf/models/Etc/etc_entry.py
+
 import hashlib
 from dataclasses import dataclass
 from vwrconf.models.Backup.backup_entry_base import BackupEntry
 
 @dataclass(frozen=True)
-class CrontabEntry(BackupEntry):
+class EtcEntry(BackupEntry):
     line: str
     host: str = ""
-    source: str = "unknown"  # "live" or "backup"
+    path: str = ""
+    source: str = "unknown"
 
     def normalized(self) -> str:
         return self.line.strip()
 
     def hash(self) -> str:
-        # Normalized hash for comparison
-        norm = self.normalized().encode("utf-8")
-        return hashlib.sha256(norm).hexdigest()
+        data = f"{self.path}:{self.normalized()}"
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
