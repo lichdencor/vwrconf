@@ -13,6 +13,7 @@ class EtcCommands(GlobalCommand):
     @classmethod
     def cmd_view_etc(cls, args):
         config = cls.should_filter_host(args)
+        cls.verbose_log(args, f"Fetching /etc files from {len(config.clients)} host(s).")
 
         sudo_needed = any(c.ssh_user != "root" for c in config.clients)
         sudo_password = getpass.getpass("Enter sudo password for remote hosts: ") if sudo_needed else None
@@ -33,11 +34,13 @@ class EtcCommands(GlobalCommand):
         sudo_password = getpass.getpass("Enter sudo password for remote hosts: ") if sudo_needed else None
 
         for client in config.clients:
+            cls.verbose_log(args, f"Starting backup for {len(config.clients)} client(s).")
             backup.write_backup(client.id, args.paths, sudo_password=sudo_password)
 
     @classmethod
     def cmd_restore_etc(cls, args):
         config = cls.load_config(args.config)
+        cls.verbose_log(args, f"Restoring /etc backup for host {args.host} from timestamp {args.timestamp}.")
         backup = EtcBackup(config)
 
         # Validar host
@@ -92,6 +95,7 @@ class EtcCommands(GlobalCommand):
     @classmethod
     def cmd_list_etc_dates(cls, args):
         config = cls.load_config(args.config)
+        cls.verbose_log(args, f"Reading backup for host '{args.host}'")
         backup = EtcBackup(config)
         dates = backup.read_backup_stored_dates(args.host)
         if dates:
@@ -104,6 +108,7 @@ class EtcCommands(GlobalCommand):
     @classmethod
     def cmd_read_etc_backup(cls, args):
         config = cls.load_config(args.config)
+        cls.verbose_log(args, f"Reading backup for host '{args.host}' at '{args.timestamp}' with pattern '{args.grep}'.")
         backup = EtcBackup(config)
         contents = backup.read_backup_stored(args.host, args.timestamp)
 
@@ -118,6 +123,7 @@ class EtcCommands(GlobalCommand):
     @classmethod
     def cmd_list_etc_hosts(cls, args):
         config = cls.load_config(args.config)
+        cls.verbose_log(args, f"Reading backup for host '{args.host}' at '{args.timestamp}'.")
         backup = EtcBackup(config)
         hosts = backup.read_backup_known_hosts()
         if hosts:
@@ -143,8 +149,9 @@ class EtcCommands(GlobalCommand):
         config = cls.should_filter_host(args, is_diff=True)
         etc_backup = EtcBackup(config)
         live_etc_data = fetch_all_etc(config, args.paths)  # {host: {path: content}}
-
         host = args.host
+        cls.verbose_log(args, f"Loading live /etc files for host '{host}'.")
+
         if host not in live_etc_data:
             print(f"Host '{host}' not found in live /etc data.")
             sys.exit(1)
@@ -156,6 +163,7 @@ class EtcCommands(GlobalCommand):
 
         host_dir = etc_backup._get_host_backup_dir(host)
         backup_files = {}
+        cls.verbose_log(args, f"Loading latest backup '{latest_backup}' from host '{host}'.")
         for f in os.listdir(host_dir):
             if f.startswith(latest_backup) and f.endswith(".etc"):
                 path_part = f.split("__",1)[-1].replace(".etc", "").replace("_", "/")
@@ -201,6 +209,7 @@ class EtcCommands(GlobalCommand):
         host = args.host
 
         def load_backup_files(timestamp):
+            cls.verbose_log(args, f"Reading backup files for host '{host}' at timestamp '{timestamp}'.")
             host_dir = etc_backup._get_host_backup_dir(host)
             files = [f for f in os.listdir(host_dir) if f.startswith(timestamp) and f.endswith(".etc")]
             files_content = {}
@@ -244,18 +253,48 @@ class EtcCommands(GlobalCommand):
     @classmethod
     def cmd_diff_hosts_etc(cls, args):
         config = cls.should_filter_host(args, is_diff=True)
-        live_etc = fetch_all_etc(config, args.paths)
 
         host1 = args.host1
         host2 = args.host2
 
-        if host1 not in live_etc or host2 not in live_etc:
-            print("One or both hosts not found in live /etc data.")
-            if host1 not in live_etc:
+        clients_by_id = {c.id: c for c in config.clients}
+        if host1 not in clients_by_id or host2 not in clients_by_id:
+            print("One or both hosts not found in configuration.")
+            if host1 not in clients_by_id:
                 print(f"  ✘ Missing: {host1}")
-            if host2 not in live_etc:
+            if host2 not in clients_by_id:
                 print(f"  ✘ Missing: {host2}")
             sys.exit(1)
+
+        clients = [clients_by_id[host1], clients_by_id[host2]]
+        live_etc = {}
+
+
+        for client in clients:
+            if client.readonly:
+                print(f"[SKIP] Host '{client.id}' is marked as readonly in the config.")
+                continue
+
+            if client.ssh_user != "root":
+                sudo_password = getpass.getpass(f"Enter sudo password for {client.id}: ")
+            else:
+                sudo_password = None
+
+            single_host_config = config.copy_with_clients([client])
+            result = fetch_all_etc(single_host_config, args.paths, sudo_password=sudo_password)
+
+            if client.id not in result:
+                print(f"[ERROR] Could not fetch /etc files from {client.id}. Skipping.")
+                continue
+
+            live_etc[client.id] = result[client.id]
+
+        # Check we got both hosts' data
+        if host1 not in live_etc or host2 not in live_etc:
+            print("[ERROR] Missing data for one or both hosts. Aborting diff.")
+            sys.exit(1)
+
+        cls.verbose_log(args, f"Comparing live /etc between '{host1}' and '{host2}'.")
 
         diff_result = diff_etc_files(live_etc[host2], live_etc[host1])
 

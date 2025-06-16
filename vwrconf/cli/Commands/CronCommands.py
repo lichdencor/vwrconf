@@ -14,6 +14,7 @@ from vwrconf.utils.entry_parser import normalize_line
 class CronCommands(GlobalCommand):
     @classmethod
     def cmd_view_crontabs(cls, args):
+        cls.verbose_log(args, "Loading config and fetching live crontabs...")
         config = cls.should_filter_host(args)
         crontabs = fetch_all_crontabs(config)
         pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
@@ -25,41 +26,42 @@ class CronCommands(GlobalCommand):
                 lines = cls.grep_lines(entry.line, pattern)
                 if lines:
                     print(f"  {entry.line}")
-
+        cls.verbose_log(args, "Finished displaying crontabs.")
 
     @classmethod
     def cmd_backup_crontabs(cls, args):
+        cls.verbose_log(args, "Loading config and starting backup of live crontabs...")
         config = cls.should_filter_host(args)
         crontabs = fetch_all_crontabs(config)
         backup = CronBackup(config)
         for host, lines in crontabs.items():
+            cls.verbose_log(args, f"Writing backup for host '{host}'...")
             backup.write_backup(host, lines)
+        cls.verbose_log(args, "All backups completed.")
 
     @classmethod
     def cmd_restore_crontab(cls, args):
+        cls.verbose_log(args, "Loading config and preparing to restore crontab...")
         config = cls.load_config(args.config)
         backup = CronBackup(config)
 
-        # Validar que existe y contiene líneas
         lines = backup.read_backup_stored(args.host, args.file)
         if not lines:
             print(f"[ERROR] Backup file '{args.file}' for host '{args.host}' is empty or not found.")
             sys.exit(1)
 
-        # DRY RUN
         if getattr(args, "dry_run", False):
             print(f"[DRY RUN] This is the content of '{args.file}' that would be restored to host '{args.host}':\n")
             for line in lines:
                 print(line)
             return
 
-        # Confirmación interactiva
         confirm = input(f"\nAre you sure you want to overwrite the crontab on host '{args.host}' with backup '{args.file}'? (yes/no): ").strip().lower()
         if confirm != "yes":
             print("Aborted by user.")
             sys.exit(0)
 
-        # Restaurar
+        cls.verbose_log(args, f"Restoring crontab on host '{args.host}' from file '{args.file}'...")
         success = backup.restore_backup(args.host, args.file)
         if not success:
             print(f"[ERROR] Failed to restore backup '{args.file}' on host '{args.host}'.")
@@ -67,9 +69,9 @@ class CronCommands(GlobalCommand):
 
         print(f"[OK] Crontab restored successfully on host '{args.host}' from backup '{args.file}'.")
 
-
     @classmethod
     def cmd_list_backup_dates(cls, args):
+        cls.verbose_log(args, f"Loading backup dates for host '{args.host}'...")
         config = cls.load_config(args.config)
         backup = CronBackup(config)
         dates = backup.read_backup_stored_dates(args.host)
@@ -82,6 +84,7 @@ class CronCommands(GlobalCommand):
 
     @classmethod
     def cmd_read_backup_file(cls, args):
+        cls.verbose_log(args, f"Reading backup file '{args.file}' for host '{args.host}'...")
         config = cls.load_config(args.config)
         backup = CronBackup(config)
         lines = backup.read_backup_stored(args.host, args.file)
@@ -94,6 +97,7 @@ class CronCommands(GlobalCommand):
 
     @classmethod
     def cmd_list_backup_hosts(cls, args):
+        cls.verbose_log(args, "Listing all known backup hosts...")
         config = cls.load_config(args.config)
         backup = CronBackup(config)
         hosts = backup.read_backup_known_hosts()
@@ -107,6 +111,7 @@ class CronCommands(GlobalCommand):
 
     @classmethod
     def cmd_diff_live_backup(cls, args):
+        cls.verbose_log(args, f"Loading config and live crontab for host '{args.host}'...")
         config = cls.should_filter_host(args, is_diff=True)
         crontabs = fetch_all_crontabs(config)
         backup = CronBackup(config)
@@ -120,6 +125,8 @@ class CronCommands(GlobalCommand):
         if not latest_backup:
             print(f"No backups found for host '{host}'.")
             sys.exit(1)
+
+        cls.verbose_log(args, f"Comparing live crontab against latest backup: {latest_backup}")
 
         live_lines = crontabs[host]
         backup_lines = backup.read_backup_stored(host, latest_backup)
@@ -135,10 +142,8 @@ class CronCommands(GlobalCommand):
             if line.strip() and not line.strip().startswith("#")
         }
 
-        # Compile pattern once
         pattern = cls.compile_grep_pattern(args.grep, args.ignore_case)
         if pattern:
-            # Filter live_entries and backup_entries by matching entry.line against pattern
             live_entries = {
                 entry for entry in live_entries if cls.grep_lines(entry.line, pattern)
             }
@@ -168,6 +173,7 @@ class CronCommands(GlobalCommand):
 
     @classmethod
     def cmd_diff_backups(cls, args):
+        cls.verbose_log(args, f"Loading config and backup files for host '{args.host}'...")
         config = cls.should_filter_host(args, is_diff=True)
         backup = CronBackup(config)
 
@@ -181,6 +187,8 @@ class CronCommands(GlobalCommand):
         if not older_lines or not newer_lines:
             print(f"Missing data in one or both backup files for host '{host}'.")
             sys.exit(1)
+
+        cls.verbose_log(args, f"Comparing '{older_file}' → '{newer_file}'...")
 
         older_entries = {
             CrontabEntry(line, host=host, source="backup")
@@ -220,6 +228,7 @@ class CronCommands(GlobalCommand):
 
     @classmethod
     def cmd_diff_hosts(cls, args):
+        cls.verbose_log(args, f"Loading live crontabs for '{args.host1}' and '{args.host2}'...")
         config = cls.should_filter_host(args, is_diff=True)
         crontabs = fetch_all_crontabs(config)
 
@@ -233,6 +242,8 @@ class CronCommands(GlobalCommand):
             if host2 not in crontabs:
                 print(f"  ✘ Missing: {host2}")
             sys.exit(1)
+
+        cls.verbose_log(args, "Parsing and normalizing crontab lines for comparison...")
 
         def parse_lines(lines, host):
             entries = set()
@@ -269,4 +280,3 @@ class CronCommands(GlobalCommand):
 
         if not diff["added"] and not diff["removed"]:
             print("  No differences found.")
-

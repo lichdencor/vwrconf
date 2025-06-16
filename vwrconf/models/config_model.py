@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Literal
 from pydantic import BaseModel
-
+import copy
 
 class Defaults(BaseModel):
     ssh_user: Optional[str] = None
@@ -26,3 +26,9 @@ class Client(BaseModel):
 class Config(BaseModel):
     defaults: Defaults = Defaults()
     clients: List[Client]
+
+    def copy_with_clients(self, clients):
+        new_config = copy.copy(self)
+        new_config.clients = clients
+        return new_config
+

@@ -37,7 +37,13 @@ def fetch_all_etc(config: Config, etc_paths: list[str], sudo_password: str | Non
                 print(f"[WARN] Error fetching {path} from {client.id}: {stderr.strip()}")
                 continue
 
-            host_data[path] = stdout
+            # Clean sudo prompt + echoed password
+            cleaned_lines = [
+                line for line in stdout.splitlines()
+                if line.strip() not in ("Password:", (sudo_password or "").strip()) and
+                not line.lower().startswith("[sudo] password")
+            ]
+            host_data[path] = "\n".join(cleaned_lines)
 
         ssh.close()
 

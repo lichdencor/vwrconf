@@ -8,6 +8,7 @@ from vwrconf.cli.Commands.EtcCommands import EtcCommands
 
 from vwrconf.utils.yaml_path import cmd_config
 
+
 def build_parser():
     """
     Builds the parser to run the cli commands
@@ -31,7 +32,7 @@ def build_parser():
     config.add_argument("-s", "--set", metavar="PATH", help="Set default config YAML file path")
     config.set_defaults(func=cmd_config)
 
-    # 3. Global regex common to subcommands
+    # 3. Common grep args (regex pattern and case sensitivity)
     def add_common_grep_arg(subparser):
         subparser.add_argument(
             "-g", "--grep",
@@ -43,23 +44,32 @@ def build_parser():
             action="store_true",
             help="Perform case-insensitive matching"
         )
+
+    # 4. Verbose and host selector — usable across all relevant subcommands
+    def add_common_global_arg(subparser):
+        subparser.add_argument(
+            "--verbose",
+            action="store_true",
+            help="Enable verbose output for debugging"
+        )
         subparser.add_argument(
             "-s", "--select-host",
             metavar="HOST",
             help="Only show output for this host"
         )
 
-
     # --- Cron subcommands ---
     # Subcommand: cron_view
     cron_view = cron_subparsers.add_parser("view", help="Fetch and display remote crontabs")
     cron_view.add_argument("-c", "--config", default=None)
+    add_common_global_arg(cron_view)
     add_common_grep_arg(cron_view)
     cron_view.set_defaults(func=CronCommands.cmd_view_crontabs)
 
     # Subcommand: cron_backup
     cron_backup = cron_subparsers.add_parser("backup", help="Backup remote crontabs to local files")
     cron_backup.add_argument("-c", "--config", default=None)
+    add_common_global_arg(cron_backup)
     cron_backup.set_defaults(func=CronCommands.cmd_backup_crontabs)
 
     # Subcommand: cron_restore
@@ -68,12 +78,14 @@ def build_parser():
     cron_restore.add_argument("file")
     cron_restore.add_argument("-c", "--config", default=None)
     cron_restore.add_argument("--dry-run", action="store_true", help="Show what would be restored without applying it")
+    add_common_global_arg(cron_restore)
     cron_restore.set_defaults(func=CronCommands.cmd_restore_crontab)
 
     # Subcommand: cron_read_dates
     cron_read_dates = cron_subparsers.add_parser("read-dates", help="List backup snapshots for a host")
     cron_read_dates.add_argument("host")
     cron_read_dates.add_argument("-c", "--config", default=None)
+    add_common_global_arg(cron_read_dates)
     cron_read_dates.set_defaults(func=CronCommands.cmd_list_backup_dates)
 
     # Subcommand: cron_read_file
@@ -82,11 +94,13 @@ def build_parser():
     cron_read_file.add_argument("file")
     cron_read_file.add_argument("-c", "--config", default=None)
     add_common_grep_arg(cron_read_file)
+    add_common_global_arg(cron_read_file)
     cron_read_file.set_defaults(func=CronCommands.cmd_read_backup_file)
 
     # Subcommand: cron_list_hosts
     cron_list_hosts = cron_subparsers.add_parser("list-hosts", help="List all hosts with backups")
     cron_list_hosts.add_argument("-c", "--config", default=None)
+    add_common_global_arg(cron_list_hosts)
     cron_list_hosts.set_defaults(func=CronCommands.cmd_list_backup_hosts)
 
     # Subcommand: cron_diff_live
@@ -94,6 +108,7 @@ def build_parser():
     cron_diff_live.add_argument("host")
     cron_diff_live.add_argument("-c", "--config", default=None)
     add_common_grep_arg(cron_diff_live)
+    add_common_global_arg(cron_diff_live)
     cron_diff_live.set_defaults(func=CronCommands.cmd_diff_live_backup)
 
     # Subcommand: cron_diff_backups
@@ -103,6 +118,7 @@ def build_parser():
     cron_diff_backups.add_argument("file2")
     cron_diff_backups.add_argument("-c", "--config", default=None)
     add_common_grep_arg(cron_diff_backups)
+    add_common_global_arg(cron_diff_backups)
     cron_diff_backups.set_defaults(func=CronCommands.cmd_diff_backups)
 
     # Subcommand: cron_diff_hosts
@@ -112,6 +128,7 @@ def build_parser():
     cron_diff_hosts.add_argument("-c", "--config", default=None)
     cron_diff_hosts.add_argument("-n", "--normalize", action="store_true")
     add_common_grep_arg(cron_diff_hosts)
+    add_common_global_arg(cron_diff_hosts)
     cron_diff_hosts.set_defaults(func=CronCommands.cmd_diff_hosts)
 
 
@@ -121,12 +138,14 @@ def build_parser():
     etc_view.add_argument("paths", nargs="+", help="Paths to /etc files to fetch (e.g., /etc/hostname)")
     etc_view.add_argument("-c", "--config", default=None)
     add_common_grep_arg(etc_view)
+    add_common_global_arg(etc_view)
     etc_view.set_defaults(func=EtcCommands.cmd_view_etc)
 
     # Subcommand: backup /etc files
     etc_backup = etc_subparsers.add_parser("backup", help="Backup /etc files from all hosts")
     etc_backup.add_argument("paths", nargs="+", help="Paths to /etc files to fetch and store")
     etc_backup.add_argument("-c", "--config", default=None)
+    add_common_global_arg(etc_backup)
     etc_backup.set_defaults(func=EtcCommands.cmd_backup_etc)
 
     # Subcommand: restore /etc files to host
@@ -134,12 +153,14 @@ def build_parser():
     etc_restore.add_argument("host", help="Host ID")
     etc_restore.add_argument("timestamp", help="Backup timestamp to restore")
     etc_restore.add_argument("-c", "--config", default=None)
+    add_common_global_arg(etc_restore)
     etc_restore.set_defaults(func=EtcCommands.cmd_restore_etc)
 
     # Subcommand: list available backup timestamps for host
     etc_dates = etc_subparsers.add_parser("read-dates", help="List /etc backup timestamps for a host")
     etc_dates.add_argument("host", help="Host ID")
     etc_dates.add_argument("-c", "--config", default=None)
+    add_common_global_arg(etc_dates)
     etc_dates.set_defaults(func=EtcCommands.cmd_list_etc_dates)
 
     # Subcommand: read contents of a stored backup
@@ -149,20 +170,22 @@ def build_parser():
     etc_read.add_argument("-t", "--timestamp", required=True, help="Backup timestamp to restore")
     etc_read.add_argument("--dry-run", action="store_true", help="Print files that would be restored")
     etc_read.add_argument("--force", action="store_true", help="Skip confirmation prompts")
-
     add_common_grep_arg(etc_read)
+    add_common_global_arg(etc_read)
     etc_read.set_defaults(func=EtcCommands.cmd_read_etc_backup)
 
     # Subcommand: list known backup hosts
     etc_hosts = etc_subparsers.add_parser("list-hosts", help="List hosts with /etc backups")
     etc_hosts.add_argument("-c", "--config", default=None)
+    add_common_global_arg(etc_hosts)
     etc_hosts.set_defaults(func=EtcCommands.cmd_list_etc_hosts)
 
     # Subcommand: diff live host
     etc_diff_live = etc_subparsers.add_parser("diff-live", help="Diff between live /etc and latest backup")
     etc_diff_live.add_argument("host")
     etc_diff_live.add_argument("-c", "--config", default=None)
-    add_common_grep_arg(etc_diff_live)  # Add this
+    add_common_grep_arg(etc_diff_live)
+    add_common_global_arg(etc_diff_live)
     etc_diff_live.set_defaults(func=EtcCommands.cmd_diff_live_backup_etc)
 
     # Subcommand: diff backup files
@@ -171,18 +194,19 @@ def build_parser():
     etc_diff_backups.add_argument("file1")
     etc_diff_backups.add_argument("file2")
     etc_diff_backups.add_argument("-c", "--config", default=None)
+    add_common_global_arg(etc_diff_backups)
     add_common_grep_arg(etc_diff_backups)  # Add this
     etc_diff_backups.set_defaults(func=EtcCommands.cmd_diff_backups_etc)
 
     # Subcommand: diff hosts
     etc_diff_hosts = etc_subparsers.add_parser("diff-hosts", help="Diff live /etc files between two hosts")
+    etc_diff_hosts.add_argument("paths", nargs="+", help="Paths to /etc files to fetch (e.g., /etc/hostname)")
     etc_diff_hosts.add_argument("host1")
     etc_diff_hosts.add_argument("host2")
     etc_diff_hosts.add_argument("-c", "--config", default=None)
+    add_common_global_arg(etc_diff_hosts)
     add_common_grep_arg(etc_diff_hosts)
     etc_diff_hosts.set_defaults(func=EtcCommands.cmd_diff_hosts_etc)
-
-
 
     return parser
 
