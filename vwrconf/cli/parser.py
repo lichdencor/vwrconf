@@ -28,7 +28,7 @@ def build_parser():
 
     # 2. Global config command
     config = top_level.add_parser("config", help="Manage vwrconf config path")
-    config.add_argument("-c", "--config-path", metavar="PATH", help="Set default config YAML file path")
+    config.add_argument("-s", "--set", metavar="PATH", help="Set default config YAML file path")
     config.set_defaults(func=cmd_config)
 
     # 3. Global regex common to subcommands
