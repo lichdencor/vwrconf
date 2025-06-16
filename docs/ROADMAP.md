@@ -38,9 +38,9 @@ This roadmap outlines the priority tasks to focus on during the upcoming week, b
 - [ ] Begin development of `NginxPlugin` (basic loading and diff support)  
 
 ### 5. CLI and Logging  
-- [ ] Add `--verbose` flag for detailed CLI debug output  
-- [ ] Improve error messages and logging for remote operations  
-- [ ] Update documentation for existing CLI commands and TUI shortcuts  
+- [x] Add `--verbose` flag for detailed CLI debug output  
+- [x] Improve error messages and logging for remote operations  
+- [x] Update documentation for existing CLI commands and TUI shortcuts  
 
 ---
 
