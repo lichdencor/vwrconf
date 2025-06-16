@@ -146,9 +146,9 @@ def build_parser():
     etc_read = etc_subparsers.add_parser("read-file", help="Print contents of an /etc backup")
     etc_read.add_argument("host", help="Host ID")
     etc_read.add_argument("-c", "--config", default=None)
-    etc_restore.add_argument("-t", "--timestamp", required=True, help="Backup timestamp to restore")
-    etc_restore.add_argument("--dry-run", action="store_true", help="Print files that would be restored")
-    etc_restore.add_argument("--force", action="store_true", help="Skip confirmation prompts")
+    etc_read.add_argument("-t", "--timestamp", required=True, help="Backup timestamp to restore")
+    etc_read.add_argument("--dry-run", action="store_true", help="Print files that would be restored")
+    etc_read.add_argument("--force", action="store_true", help="Skip confirmation prompts")
 
     add_common_grep_arg(etc_read)
     etc_read.set_defaults(func=EtcCommands.cmd_read_etc_backup)
